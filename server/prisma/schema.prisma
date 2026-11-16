@@ -1,0 +1,229 @@
+// =============================================================================
+// EstuLanches — modelo de dados relacional (PostgreSQL)
+//
+// Convenções:
+//   • IDs UUID v7 (ordenados no tempo → melhor localidade nos índices B-tree).
+//   • Datas em timestamptz (UTC no banco; fuso aplicado só na apresentação).
+//   • Nomes de tabelas/colunas em snake_case via @@map/@map.
+//   • Restrições que o Prisma não modela (CHECK) ficam na migration SQL.
+// =============================================================================
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  STUDENT
+}
+
+enum OrderStatus {
+  RECEIVED // Recebido
+  PREPARING // Em preparação
+  READY // Pronto para retirada
+  DELIVERED // Entregue
+  CANCELLED // Cancelado
+}
+
+enum PaymentMethod {
+  CASH // Dinheiro
+  PIX // PIX
+  AT_COUNTER // Pagamento na cantina
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  CANCELLED
+}
+
+/// Conta de acesso (administradores e estudantes).
+model User {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  name         String    @db.VarChar(120)
+  /// Sempre normalizado em minúsculas pela aplicação.
+  email        String    @unique @db.VarChar(254)
+  passwordHash String    @map("password_hash") @db.VarChar(100)
+  role         Role      @default(STUDENT)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  student        Student?
+  sessions       Session[]
+  statusChanges  OrderStatusHistory[]
+  paymentsLogged Payment[]
+
+  @@index([role, createdAt])
+  @@map("users")
+}
+
+/// Perfil acadêmico do estudante (1:1 com User).
+model Student {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  /// Matrícula escolar — única por estudante.
+  registration String   @unique @db.VarChar(30)
+  /// Turma/série, ex.: "2º ano B".
+  grade        String   @db.VarChar(40)
+  phone        String?  @db.VarChar(20)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@map("students")
+}
+
+/// Sessão de refresh token (armazenado apenas como hash SHA-256).
+/// Rotação a cada uso; tokens de uma mesma cadeia compartilham `familyId`
+/// para permitir revogação em bloco ao detectar reutilização.
+model Session {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  familyId  String    @map("family_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  rotatedAt DateTime? @map("rotated_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  userAgent String?   @map("user_agent") @db.VarChar(255)
+  ipAddress String?   @map("ip_address") @db.VarChar(45)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Category {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  name      String   @unique @db.VarChar(60)
+  slug      String   @unique @db.VarChar(70)
+  /// Ordem de exibição no cardápio.
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  products Product[]
+
+  @@index([sortOrder])
+  @@map("categories")
+}
+
+model Product {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  categoryId  String    @map("category_id") @db.Uuid
+  name        String    @db.VarChar(80)
+  description String    @default("") @db.VarChar(280)
+  /// Preço atual. O preço praticado em cada venda fica em OrderItem.unitPrice.
+  price       Decimal   @db.Decimal(10, 2)
+  /// CHECK (stock >= 0) garantido no banco.
+  stock       Int       @default(0)
+  /// Controle manual de disponibilidade no cardápio.
+  isAvailable Boolean   @default(true) @map("is_available")
+  /// Chave do arquivo no storage de imagens (URL pública é derivada).
+  imageKey    String?   @map("image_key") @db.VarChar(120)
+  /// Exclusão lógica: preserva o histórico de pedidos.
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  orderItems OrderItem[]
+
+  @@index([categoryId, isAvailable])
+  @@index([archivedAt, name])
+  @@map("products")
+}
+
+model Order {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  /// Código curto e único exibido ao estudante e à cantina (ex.: 4F7K2Q).
+  code           String      @unique @db.VarChar(12)
+  studentId      String      @map("student_id") @db.Uuid
+  status         OrderStatus @default(RECEIVED)
+  /// Total congelado no momento da compra (soma dos itens).
+  total          Decimal     @db.Decimal(10, 2)
+  notes          String?     @db.VarChar(200)
+  /// Chave enviada pelo cliente para tornar o checkout idempotente.
+  idempotencyKey String?     @map("idempotency_key") @db.VarChar(64)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  student       Student              @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  items         OrderItem[]
+  payment       Payment?
+  statusHistory OrderStatusHistory[]
+
+  @@unique([studentId, idempotencyKey])
+  @@index([studentId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+/// Item do pedido com snapshot de nome e preço (histórico imutável).
+model OrderItem {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  orderId     String  @map("order_id") @db.Uuid
+  productId   String  @map("product_id") @db.Uuid
+  productName String  @map("product_name") @db.VarChar(80)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(10, 2)
+  quantity    Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, productId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model Payment {
+  id            String        @id @default(uuid(7)) @db.Uuid
+  orderId       String        @unique @map("order_id") @db.Uuid
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  amount        Decimal       @db.Decimal(10, 2)
+  paidAt        DateTime?     @map("paid_at") @db.Timestamptz(3)
+  /// Administrador que registrou a última alteração de pagamento.
+  updatedById   String?       @map("updated_by_id") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@map("payments")
+}
+
+/// Trilha de auditoria das mudanças de status de cada pedido.
+model OrderStatusHistory {
+  id          String      @id @default(uuid(7)) @db.Uuid
+  orderId     String      @map("order_id") @db.Uuid
+  status      OrderStatus
+  changedById String?     @map("changed_by_id") @db.Uuid
+  note        String?     @db.VarChar(200)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy User? @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@map("order_status_history")
+}
