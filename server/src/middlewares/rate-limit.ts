@@ -60,6 +60,16 @@ export const refreshRateLimit = rateLimit({
   message: 'Muitas renovações de sessão. Aguarde um instante.',
 });
 
+/** Troca de senha: conta apenas falhas, por usuário (use após `authenticate`). */
+export const passwordChangeRateLimit = rateLimit({
+  ...baseOptions,
+  windowMs: 15 * 60_000,
+  limit: 5,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => req.auth?.userId ?? clientIp(req),
+  message: 'Muitas tentativas de troca de senha. Aguarde alguns minutos.',
+});
+
 /** Criação de pedidos por usuário autenticado (use após `authenticate`). */
 export const orderRateLimit = rateLimit({
   ...baseOptions,

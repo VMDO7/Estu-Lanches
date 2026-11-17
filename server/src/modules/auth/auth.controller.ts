@@ -1,7 +1,7 @@
 import type { CookieOptions, Request, Response } from 'express';
 import { isProduction } from '../../config/env.js';
 import { getAuth } from '../../shared/auth-context.js';
-import { loginSchema, registerSchema } from './auth.schemas.js';
+import { changePasswordSchema, loginSchema, registerSchema, updateProfileSchema } from './auth.schemas.js';
 import { authService, type ClientContext, type IssuedSession } from './auth.service.js';
 
 const REFRESH_COOKIE = 'el_rt';
@@ -71,5 +71,16 @@ export const authController = {
 
   async me(req: Request, res: Response) {
     res.json({ user: await authService.me(getAuth(req).userId) });
+  },
+
+  async updateProfile(req: Request, res: Response) {
+    const input = updateProfileSchema.parse(req.body);
+    res.json({ user: await authService.updateProfile(getAuth(req).userId, input) });
+  },
+
+  async changePassword(req: Request, res: Response) {
+    const input = changePasswordSchema.parse(req.body);
+    await authService.changePassword(getAuth(req).userId, input, readRefreshToken(req));
+    res.status(204).end();
   },
 };

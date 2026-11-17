@@ -23,6 +23,8 @@ const MenuManagementPage = lazyPage(() => import('@/pages/admin/MenuManagementPa
 const StudentsPage = lazyPage(() => import('@/pages/admin/StudentsPage'), 'StudentsPage');
 const StudentDetailPage = lazyPage(() => import('@/pages/admin/StudentDetailPage'), 'StudentDetailPage');
 
+const AccountPage = lazyPage(() => import('@/pages/AccountPage'), 'AccountPage');
+
 const StudentMenuPage = lazyPage(() => import('@/pages/student/StudentMenuPage'), 'StudentMenuPage');
 const CheckoutPage = lazyPage(() => import('@/pages/student/CheckoutPage'), 'CheckoutPage');
 const MyOrdersPage = lazyPage(() => import('@/pages/student/MyOrdersPage'), 'MyOrdersPage');
@@ -61,6 +63,7 @@ export const router = createBrowserRouter([
           { path: 'cardapio', element: <MenuManagementPage /> },
           { path: 'estudantes', element: <StudentsPage /> },
           { path: 'estudantes/:id', element: <StudentDetailPage /> },
+          { path: 'conta', element: <AccountPage /> },
         ],
       },
       {
@@ -75,6 +78,7 @@ export const router = createBrowserRouter([
           { path: 'checkout', element: <CheckoutPage /> },
           { path: 'pedidos', element: <MyOrdersPage /> },
           { path: 'pedidos/:id', element: <StudentOrderPage /> },
+          { path: 'conta', element: <AccountPage /> },
         ],
       },
       { path: '*', element: <NotFoundPage /> },

@@ -17,6 +17,7 @@
     "build": "npm run build -w server && npm run build -w web",
     "start": "npm run start -w server",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
+    "test": "npm run test -w server && npm run test -w web",
     "setup": "npm run db:deploy && npm run db:seed",
     "db:generate": "npm run db:generate -w server",
     "db:migrate": "npm run db:migrate -w server",

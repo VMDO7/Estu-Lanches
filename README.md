@@ -49,6 +49,7 @@ A arquitetura detalhada (diagramas, modelo de dados, fluxos e roteiro de escalab
 - Acompanhamento ao vivo (linha do tempo com horários), aviso quando o pedido fica pronto e cancelamento enquanto o pedido ainda não entrou em preparo.
 
 ### Transversal
+- **Minha conta** (aluno e admin): edição de nome e turma, troca de senha com confirmação da senha atual e encerramento automático das sessões em outros dispositivos.
 - Landing page de produto, login e cadastro com validação, feedback (toasts, loading, empty states e estados de erro) e layout responsivo de 360 px a desktop.
 
 ---
@@ -122,6 +123,7 @@ Execute na raiz do projeto:
 | `npm run build` | Build de produção dos dois apps |
 | `npm start` | Inicia a API compilada |
 | `npm run typecheck` | Checagem de tipos nos dois apps |
+| `npm test` | Testes unitários (test runner nativo do Node, sem banco) |
 | `npm run setup` | `db:deploy` + `db:seed` (primeira instalação) |
 | `npm run db:migrate` | Cria e aplica migrations em desenvolvimento |
 | `npm run db:deploy` | Aplica migrations pendentes (produção/CI) |
@@ -235,6 +237,8 @@ Base: `/api/v1`. Respostas em JSON. Erros sempre no formato:
 | POST | `/auth/refresh` | cookie | Renova a sessão (rotação do refresh token) |
 | POST | `/auth/logout` | cookie | Encerra a sessão |
 | GET | `/auth/me` | autenticado | Usuário atual |
+| PATCH | `/auth/me` | autenticado | Atualiza nome (e turma, para estudantes) |
+| PATCH | `/auth/password` | autenticado | Troca a senha e encerra as sessões de outros dispositivos |
 | GET | `/meta` | público | Configurações públicas (modo demo, fuso) |
 | GET | `/menu` | autenticado | Cardápio publicado |
 | GET | `/categories` | autenticado | Categorias (`?includeInactive=true` para admin) |
@@ -294,7 +298,8 @@ Probes de infraestrutura: `GET /health/live` e `GET /health/ready` (verifica o b
 ## Testes e verificação
 
 - `npm run typecheck`: TypeScript estrito nos dois apps.
-- `npm run test:e2e`: 101 verificações contra a API real, cobrindo autenticação, RBAC, validação, pedidos, idempotência, concorrência (12 compras simultâneas da última unidade), preço congelado, máquina de estados, devolução de estoque, uploads maliciosos, dashboard e ciclo de vida da sessão.
+- `npm test`: 24 testes unitários das regras puras: máquina de estados e código do pedido, dinheiro com `Decimal`, fuso horário, assinatura de imagens, redirecionamento seguro após login, formatação e ilustrações de produto. Não precisam de banco.
+- `npm run test:e2e`: 114 verificações contra a API real, cobrindo autenticação, RBAC, validação, pedidos, idempotência, concorrência (12 compras simultâneas da última unidade), preço congelado, máquina de estados, devolução de estoque, uploads maliciosos, dashboard, ciclo de vida da sessão e troca de senha.
 - As telas foram revisadas com navegador automatizado em desktop e celular (390 px).
 
 ---

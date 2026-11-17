@@ -1,6 +1,6 @@
-import { ClipboardList, Hash, LogOut, ShoppingBag, UtensilsCrossed } from 'lucide-react';
+import { ClipboardList, Hash, LogOut, ShoppingBag, UserRound, UtensilsCrossed } from 'lucide-react';
 import { Suspense } from 'react';
-import { Link, NavLink, Outlet } from 'react-router';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router';
 import { Logo } from '@/components/brand/Logo';
 import { Avatar } from '@/components/ui/Avatar';
 import { Dropdown, DropdownItem } from '@/components/ui/Dropdown';
@@ -45,6 +45,7 @@ function CartButton({ className }: { className?: string }) {
 
 function UserMenu() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   if (!user) return null;
 
   return (
@@ -76,6 +77,15 @@ function UserMenu() {
             )}
           </div>
           <div className="my-1 h-px bg-ink-100" />
+          <DropdownItem
+            icon={<UserRound />}
+            onClick={() => {
+              close();
+              void navigate('/aluno/conta');
+            }}
+          >
+            Minha conta
+          </DropdownItem>
           <DropdownItem
             tone="danger"
             icon={<LogOut />}

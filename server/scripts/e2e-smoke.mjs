@@ -350,5 +350,42 @@ console.log('\n[12] Sessão: refresh, rotação, desativação e logout');
   check('admin reativa estudante', on.json?.data?.isActive === true);
 }
 
+console.log('\n[13] Minha conta: perfil e troca de senha');
+{
+  const acc = { name: 'Conta Teste', email: `conta.${stamp.toLowerCase()}@estulanches.test`, password: 'Senha1234', registration: `C${stamp}`, grade: '2º ano X' };
+  const deviceA = await api('POST', '/api/v1/auth/register', { body: acc });
+  const tokenA = deviceA.json?.accessToken;
+  const cookieA = cookieFrom(deviceA.setCookie);
+  const deviceB = await login(acc.email, acc.password);
+  check('duas sessões abertas (aparelhos A e B)', deviceA.status === 201 && deviceB.status === 200);
+
+  const profile = await api('PATCH', '/api/v1/auth/me', { token: tokenA, body: { name: '  Conta   Atualizada ', grade: '3º ano Y' } });
+  check('perfil atualizado e sanitizado', profile.status === 200 && profile.json?.user?.name === 'Conta Atualizada' && profile.json?.user?.student?.grade === '3º ano Y', profile.json);
+  const emptyProfile = await api('PATCH', '/api/v1/auth/me', { token: tokenA, body: {} });
+  check('perfil sem alterações → 400', emptyProfile.status === 400);
+  const adminGrade = await api('PATCH', '/api/v1/auth/me', { token: admin.token, body: { grade: '1º ano' } });
+  check('admin não tem turma → 400', adminGrade.status === 400 && adminGrade.json?.error?.code === 'GRADE_NOT_ALLOWED', adminGrade.json);
+
+  const wrong = await api('PATCH', '/api/v1/auth/password', { token: tokenA, body: { currentPassword: 'Errada123', newPassword: 'NovaSenha456' } });
+  check('senha atual errada → 400 com campo', wrong.status === 400 && wrong.json?.error?.details?.fieldErrors?.currentPassword, wrong.json);
+  const same = await api('PATCH', '/api/v1/auth/password', { token: tokenA, body: { currentPassword: acc.password, newPassword: acc.password } });
+  check('nova senha igual à atual → 400', same.status === 400, same.json);
+  const weak = await api('PATCH', '/api/v1/auth/password', { token: tokenA, body: { currentPassword: acc.password, newPassword: 'curta' } });
+  check('nova senha fraca → 400', weak.status === 400);
+
+  const changed = await api('PATCH', '/api/v1/auth/password', { token: tokenA, cookie: cookieA, body: { currentPassword: acc.password, newPassword: 'NovaSenha456' } });
+  check('troca de senha → 204', changed.status === 204, changed.json);
+  const keepA = await api('POST', '/api/v1/auth/refresh', { cookie: cookieA, headers: { Origin: ORIGIN } });
+  check('sessão do aparelho atual mantida', keepA.status === 200, keepA.json);
+  const dropB = await api('POST', '/api/v1/auth/refresh', { cookie: deviceB.cookie, headers: { Origin: ORIGIN } });
+  check('sessão de outro aparelho encerrada', dropB.status === 401, dropB.json);
+  const oldLogin = await login(acc.email, acc.password);
+  check('senha antiga não entra mais', oldLogin.status === 401);
+  const newLogin = await login(acc.email, 'NovaSenha456');
+  check('nova senha funciona', newLogin.status === 200);
+  const noAuth = await api('PATCH', '/api/v1/auth/password', { body: { currentPassword: 'x', newPassword: 'NovaSenha789' } });
+  check('troca de senha exige autenticação → 401', noAuth.status === 401);
+}
+
 console.log(`\nResultado: ${passed} ok, ${failed} falha(s)`);
 process.exit(failed ? 1 : 0);

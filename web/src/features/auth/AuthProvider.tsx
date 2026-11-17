@@ -12,6 +12,8 @@ export interface AuthContextValue {
   login: (input: LoginInput) => Promise<AuthUser>;
   register: (input: RegisterInput) => Promise<AuthUser>;
   logout: () => Promise<void>;
+  /** Atualiza os dados do usuário em memória (ex.: após editar o perfil). */
+  updateUser: (user: AuthUser) => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -104,9 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     channel.current?.postMessage('logout');
   }, [applySession]);
 
+  const updateUser = useCallback((user: AuthUser) => {
+    setState((current) => (current.user ? { ...current, user } : current));
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, register, logout }),
-    [state, login, register, logout],
+    () => ({ ...state, login, register, logout, updateUser }),
+    [state, login, register, logout, updateUser],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
