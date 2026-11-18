@@ -25,7 +25,11 @@
     "db:seed": "npm run db:seed -w server",
     "db:seed:demo": "npm run db:seed:demo -w server",
     "db:studio": "npm run db:studio -w server",
-    "test:e2e": "npm run test:e2e -w server"
+    "test:e2e": "npm run test:e2e -w server",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f api web",
+    "docker:reset": "docker compose down -v"
   },
   "devDependencies": {
     "concurrently": "^10.0.7"

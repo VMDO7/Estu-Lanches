@@ -1,0 +1,27 @@
+# Contexto de build do Docker (raiz do monorepo)
+.git
+.gitignore
+.vscode
+.idea
+**/node_modules
+**/dist
+**/.vite
+**/*.tsbuildinfo
+**/coverage
+**/*.log
+
+# Segredos e configuração local nunca entram na imagem
+**/.env
+**/.env.*
+!**/.env.example
+
+# Gerados/dados locais
+server/src/generated
+server/uploads/*
+!server/uploads/.gitkeep
+
+# Não necessários para o build
+docs
+README.md
+docker-compose*.yml
+**/Dockerfile

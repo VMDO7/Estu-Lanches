@@ -65,6 +65,48 @@ A arquitetura detalhada (diagramas, modelo de dados, fluxos e roteiro de escalab
 
 ---
 
+## Como rodar com Docker
+
+Só é preciso ter o **Docker** (Docker Desktop no Windows/macOS). Não precisa de Node nem de PostgreSQL instalados.
+
+```bash
+docker compose up -d --build     # ou: npm run docker:up
+```
+
+Acesse **http://localhost:8080**. Na primeira subida o Compose:
+
+1. cria o PostgreSQL 18 (dados no volume `pgdata`);
+2. roda o serviço `migrate`, que aplica as migrations, o seed base e, por padrão, o seed de demonstração, e depois encerra;
+3. sobe a API (só na rede interna) quando o banco está pronto;
+4. sobe o nginx com o front compilado, que faz proxy de `/api` e `/uploads` para a API (mesma origem, então o cookie `SameSite=Strict` funciona).
+
+| Serviço | Imagem | Porta no host |
+|---|---|---|
+| `web` | nginx + build do Vite (`web/Dockerfile`) | 8080 |
+| `api` | Node 24 alpine, só dependências de produção, usuário sem root (`server/Dockerfile`) | interna (3333) |
+| `migrate` | mesmo Dockerfile, target `migrate` | executa e encerra |
+| `db` | `postgres:18-alpine` | 5433 (para não conflitar com um PostgreSQL local na 5432) |
+
+**Contas padrão:** admin `admin@estulanches.com.br` / `Admin12345`; alunos de demonstração usam a senha `Aluno12345`.
+
+Para mudar portas, senhas, o segredo JWT ou desligar a demonstração, copie `.env.example` (da raiz) para `.env`. Os padrões do `docker-compose.yml` servem apenas para uso local: **em produção defina `JWT_ACCESS_SECRET`, `POSTGRES_PASSWORD` e `SEED_ADMIN_PASSWORD`** e sirva atrás de HTTPS.
+
+| Comando | O que faz |
+|---|---|
+| `npm run docker:up` | Build e sobe tudo em segundo plano |
+| `npm run docker:logs` | Acompanha os logs da API e do nginx |
+| `npm run docker:down` | Para os containers (mantém o banco e as fotos de produtos) |
+| `npm run docker:reset` | Para e **apaga** os volumes (banco e uploads) |
+| `docker compose run --rm -e NODE_ENV=development migrate npm run db:seed:demo -- --reset` | Recria os dados de demonstração |
+
+Teste ponta a ponta contra os containers (na pasta `server`, com `SEED_*` no `.env` iguais aos do Compose):
+
+```bash
+API_URL=http://localhost:8080 E2E_ORIGIN=http://localhost:8080 npm run test:e2e
+```
+
+---
+
 ## Como rodar localmente
 
 ### Pré-requisitos
@@ -101,7 +143,7 @@ npm run dev
 
 Acesse **http://localhost:5173**. Em desenvolvimento, o Vite encaminha `/api` e `/uploads` para a API, de modo que front e API ficam na mesma origem e o cookie de sessão (`SameSite=Strict`) funciona sem configuração extra.
 
-### Produção (sem Docker, por enquanto)
+### Produção sem Docker
 
 ```bash
 npm run build          # gera server/dist e web/dist
@@ -316,7 +358,6 @@ Probes de infraestrutura: `GET /health/live` e `GET /health/ready` (verifica o b
 
 ## Próximos passos
 
-- Containerização (Dockerfile e docker-compose), fora do escopo desta etapa.
 - Redis para rate limit distribuído, cache do cardápio e do dashboard e pub/sub de status em tempo real.
 - Storage de objetos + CDN para imagens; fila de jobs (relatórios, notificações, limpeza).
 - Testes automatizados de unidade e de componentes no CI.

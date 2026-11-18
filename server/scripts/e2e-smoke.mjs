@@ -7,7 +7,8 @@
 // estado inicial: npm run db:seed:demo -- --reset
 //
 // Uso (na pasta server):  npm run test:e2e   (ou: node scripts/e2e-smoke.mjs .env)
-// Variável opcional: API_URL (padrão http://localhost:3333)
+// Variáveis opcionais: API_URL (padrão http://localhost:3333) e E2E_ORIGIN
+// (padrão http://localhost:5173). Contra o Docker, use http://localhost:8080 nas duas.
 // =============================================================================
 import { readFileSync } from 'node:fs';
 
@@ -20,7 +21,8 @@ const env = Object.fromEntries(
 );
 
 const BASE = process.env.API_URL ?? 'http://localhost:3333';
-const ORIGIN = 'http://localhost:5173';
+// Origem do front autorizada na API (CORS_ORIGINS). No Docker: http://localhost:8080
+const ORIGIN = process.env.E2E_ORIGIN ?? 'http://localhost:5173';
 if (env.NODE_ENV === 'production' || process.env.NODE_ENV === 'production') {
   console.error('Recusado: o smoke test altera dados e não roda em produção.');
   process.exit(1);
