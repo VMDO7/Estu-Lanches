@@ -94,6 +94,30 @@ export const authRepository = {
     });
   },
 
+  updatePasswordHash(userId: string, passwordHash: string) {
+    return prisma.user.update({ where: { id: userId }, data: { passwordHash }, select: { id: true } });
+  },
+
+  /** Atualiza nome (usuário) e turma (perfil de estudante, se houver) de uma vez. */
+  updateProfile(userId: string, data: { name?: string | undefined; grade?: string | undefined }) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.grade !== undefined && { student: { update: { grade: data.grade } } }),
+      },
+      include: userWithStudent,
+    });
+  },
+
+  /** Revoga todas as sessões do usuário, exceto a cadeia informada (a sessão atual). */
+  revokeOtherSessions(userId: string, keepFamilyId?: string) {
+    return prisma.session.updateMany({
+      where: { userId, revokedAt: null, ...(keepFamilyId && { NOT: { familyId: keepFamilyId } }) },
+      data: { revokedAt: new Date() },
+    });
+  },
+
   deleteExpiredSessions(before: Date) {
     return prisma.session.deleteMany({ where: { expiresAt: { lt: before } } });
   },

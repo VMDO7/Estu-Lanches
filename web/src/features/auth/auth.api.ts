@@ -1,5 +1,5 @@
 import { api } from '@/lib/api-client';
-import type { AuthSession, Role } from '@/types/api';
+import type { AuthSession, AuthUser } from '@/types/api';
 
 export interface LoginInput {
   email: string;
@@ -14,20 +14,22 @@ export interface RegisterInput {
   grade: string;
 }
 
+export interface UpdateProfileInput {
+  name?: string;
+  grade?: string;
+}
+
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export const authApi = {
   login: (input: LoginInput) => api.post<AuthSession>('/auth/login', input, { auth: false }),
   register: (input: RegisterInput) => api.post<AuthSession>('/auth/register', input, { auth: false }),
   logout: () => api.post<void>('/auth/logout', undefined, { auth: false }),
+  updateProfile: async (input: UpdateProfileInput) => (await api.patch<{ user: AuthUser }>('/auth/me', input)).user,
+  changePassword: (input: ChangePasswordInput) => api.patch<void>('/auth/password', input),
 };
 
-export function homePathFor(role: Role) {
-  return role === 'ADMIN' ? '/admin' : '/aluno';
-}
-
-/** Aceita apenas caminhos internos (evita open redirect via ?redirect=). */
-export function safeRedirect(value: string | null, role: Role): string {
-  const fallback = homePathFor(role);
-  if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return fallback;
-  const area = role === 'ADMIN' ? '/admin' : '/aluno';
-  return value.startsWith(area) ? value : fallback;
-}
+export { homePathFor, safeRedirect } from './redirect';

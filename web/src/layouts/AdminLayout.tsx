@@ -112,11 +112,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <DemoBadge className="w-full justify-center" />
         {user && (
           <div className="flex items-center gap-3">
-            <Avatar name={user.name} size="sm" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-ink-900">{user.name}</p>
-              <p className="truncate text-xs text-ink-500">Administrador</p>
-            </div>
+            <Link
+              to="/admin/conta"
+              onClick={onNavigate}
+              className="-m-1.5 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 transition-colors hover:bg-ink-100/80"
+              title="Minha conta"
+            >
+              <Avatar name={user.name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-ink-900">{user.name}</p>
+                <p className="truncate text-xs text-ink-500">Minha conta</p>
+              </div>
+            </Link>
             <Button variant="ghost" size="icon-sm" onClick={() => void logout()} aria-label="Sair" title="Sair">
               <LogOut />
             </Button>

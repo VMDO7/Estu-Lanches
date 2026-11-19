@@ -8,10 +8,10 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, PasswordInput } from '@/components/ui/Input';
 import { PageTitle } from '@/components/ui/PageHeader';
+import { PasswordStrength } from '@/features/auth/PasswordStrength';
 import { useAuth } from '@/features/auth/useAuth';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { getErrorMessage, isApiError } from '@/lib/api-error';
-import { cn } from '@/lib/cn';
 import { firstName } from '@/lib/format';
 
 const registerSchema = z
@@ -39,35 +39,6 @@ const registerSchema = z
   });
 
 type RegisterValues = z.infer<typeof registerSchema>;
-
-function passwordStrength(password: string) {
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
-  if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) score++;
-  const labels = ['Muito fraca', 'Fraca', 'Razoável', 'Boa', 'Forte'];
-  return { score, label: labels[score]! };
-}
-
-function StrengthMeter({ password }: { password: string }) {
-  if (!password) return null;
-  const { score, label } = passwordStrength(password);
-  const colors = ['bg-red-500', 'bg-red-500', 'bg-amber-500', 'bg-brand-500', 'bg-brand-600'];
-  return (
-    <div className="flex items-center gap-3" aria-live="polite">
-      <div className="flex flex-1 gap-1">
-        {[0, 1, 2, 3].map((index) => (
-          <span
-            key={index}
-            className={cn('h-1 flex-1 rounded-full transition-colors', index < Math.max(score, 1) ? colors[score] : 'bg-ink-200')}
-          />
-        ))}
-      </div>
-      <span className="text-xs font-medium text-ink-500">Força: {label}</span>
-    </div>
-  );
-}
 
 export function RegisterPage() {
   const { register: createAccount } = useAuth();
@@ -170,7 +141,7 @@ export function RegisterPage() {
             {...register('password')}
           />
         </Field>
-        <StrengthMeter password={watch('password')} />
+        <PasswordStrength password={watch('password')} />
 
         <Field label="Confirmar senha" htmlFor="confirmPassword" error={errors.confirmPassword?.message}>
           <PasswordInput

@@ -43,5 +43,35 @@ export const registerSchema = z.object({
     .pipe(z.string().min(1, 'Informe sua turma.').max(40, 'Turma muito longa.')),
 });
 
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z
+      .string({ error: 'Informe a senha atual.' })
+      .min(1, 'Informe a senha atual.')
+      .refine((value) => Buffer.byteLength(value, 'utf8') <= MAX_PASSWORD_BYTES, 'Senha inválida.'),
+    newPassword: passwordField,
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    path: ['newPassword'],
+    message: 'A nova senha deve ser diferente da atual.',
+  });
+
+export const updateProfileSchema = z
+  .object({
+    name: z
+      .string()
+      .transform(cleanText)
+      .pipe(z.string().min(3, 'Informe seu nome completo.').max(120, 'Nome muito longo.'))
+      .optional(),
+    grade: z
+      .string()
+      .transform(cleanText)
+      .pipe(z.string().min(1, 'Informe sua turma.').max(40, 'Turma muito longa.'))
+      .optional(),
+  })
+  .refine((data) => data.name !== undefined || data.grade !== undefined, 'Nenhuma alteração informada.');
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

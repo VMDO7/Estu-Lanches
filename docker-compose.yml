@@ -1,0 +1,104 @@
+# =============================================================================
+# EstuLanches — ambiente completo com Docker
+#
+#   docker compose up -d --build     → http://localhost:8080
+#
+# Serviços: db (PostgreSQL 18) → migrate (migrations + seeds, encerra) → api → web
+# Valores padrão servem para rodar localmente. Para personalizar, copie
+# .env.example para .env na raiz (lido automaticamente pelo Compose).
+# =============================================================================
+
+name: estulanches
+
+x-api-env: &api-env
+  NODE_ENV: production
+  PORT: "3333"
+  APP_TIMEZONE: ${APP_TIMEZONE:-America/Sao_Paulo}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: postgresql://${POSTGRES_USER:-estulanches}:${POSTGRES_PASSWORD:-estulanches}@db:5432/${POSTGRES_DB:-estulanches}?schema=public
+  # Apenas para uso local. Em produção, defina um segredo forte no .env.
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-only-troque-este-segredo-em-producao-0123456789}
+  ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+  REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+  # A API fica atrás do nginx do serviço web (1 salto).
+  TRUST_PROXY: "1"
+  UPLOADS_DIR: /app/server/uploads
+  PUBLIC_UPLOADS_URL: /uploads
+  MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-2}
+  DEMO_MODE: ${DEMO_MODE:-true}
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-estulanches}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-estulanches}
+      POSTGRES_DB: ${POSTGRES_DB:-estulanches}
+    volumes:
+      # A imagem do PostgreSQL 18 guarda os dados em /var/lib/postgresql/18/docker.
+      - pgdata:/var/lib/postgresql
+    ports:
+      # 5433 no host para não conflitar com um PostgreSQL local na 5432.
+      - "${DB_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: migrate
+    environment:
+      <<: *api-env
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Administrador}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@estulanches.com.br}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin12345}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-Aluno12345}
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: runtime
+    restart: unless-stopped
+    environment: *api-env
+    volumes:
+      - uploads:/app/server/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Exposta só na rede interna; o acesso externo passa pelo nginx (web).
+    expose:
+      - "3333"
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+    restart: unless-stopped
+    environment:
+      API_UPSTREAM: http://api:3333
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  uploads:

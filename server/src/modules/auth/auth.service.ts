@@ -3,9 +3,9 @@ import { env } from '../../config/env.js';
 import type { Role } from '../../generated/prisma/enums.js';
 import { hashPassword, simulatePasswordCheck, verifyPassword } from '../../lib/password.js';
 import { generateRefreshToken, hashToken, signAccessToken } from '../../lib/tokens.js';
-import { AppError, conflict, unauthorized } from '../../shared/errors.js';
+import { AppError, badRequest, conflict, unauthorized } from '../../shared/errors.js';
 import { authRepository, type UserWithStudent } from './auth.repository.js';
-import type { LoginInput, RegisterInput } from './auth.schemas.js';
+import type { ChangePasswordInput, LoginInput, RegisterInput, UpdateProfileInput } from './auth.schemas.js';
 
 /**
  * Janela em que um refresh token recém-rotacionado ainda é aceito.
@@ -165,6 +165,40 @@ export const authService = {
     const user = await authRepository.findUserById(userId);
     if (!user || !user.isActive) throw sessionExpired();
     return toAuthUser(user);
+  },
+
+  async updateProfile(userId: string, input: UpdateProfileInput): Promise<AuthUser> {
+    const user = await authRepository.findUserById(userId);
+    if (!user || !user.isActive) throw sessionExpired();
+    if (input.grade !== undefined && !user.student) {
+      throw badRequest('Apenas estudantes possuem turma.', undefined, 'GRADE_NOT_ALLOWED');
+    }
+    return toAuthUser(await authRepository.updateProfile(userId, input));
+  },
+
+  /**
+   * Troca de senha com confirmação da senha atual. As sessões de outros
+   * dispositivos são encerradas; a sessão em uso (cookie atual) é mantida.
+   */
+  async changePassword(userId: string, input: ChangePasswordInput, currentRefreshToken?: string): Promise<void> {
+    const user = await authRepository.findUserById(userId);
+    if (!user || !user.isActive) throw sessionExpired();
+
+    if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
+      throw badRequest(
+        'A senha atual está incorreta.',
+        { fieldErrors: { currentPassword: ['Senha atual incorreta.'] } },
+        'INVALID_CURRENT_PASSWORD',
+      );
+    }
+
+    await authRepository.updatePasswordHash(userId, await hashPassword(input.newPassword));
+
+    const current = currentRefreshToken
+      ? await authRepository.findSessionByTokenHash(hashToken(currentRefreshToken))
+      : null;
+    const keepFamilyId = current && current.userId === userId && !current.revokedAt ? current.familyId : undefined;
+    await authRepository.revokeOtherSessions(userId, keepFamilyId);
   },
 
   /** Limpeza de sessões expiradas (idempotente — seguro em várias instâncias). */
